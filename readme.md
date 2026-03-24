@@ -2,7 +2,9 @@
 
 [![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Fjason-theodorakopoulos%2Fsimple_private_apim%2Fmain%2Fazuredeploy.json)
 
-This accelerator deploys an **Azure API Management (APIM) StandardV2** instance with **private connectivity** via a private endpoint in an existing virtual network. It follows the **Cloud Adoption Framework (CAF)** pattern where private DNS zones reside in a centralised connectivity subscription.
+This accelerator deploys an **Azure API Management (APIM) StandardV2** instance with **private connectivity** via a private endpoint in an existing virtual network.
+
+> **DNS assumption:** The private DNS zone `privatelink.azure-api.net` and its DNS Zone Group (which auto-creates the A record for the private endpoint) are assumed to **already exist** and be managed externally — for example by Azure Policy or a centralised connectivity team following the **Cloud Adoption Framework (CAF)** hub-spoke model.
 
 ## Architecture
 
@@ -20,16 +22,9 @@ This accelerator deploys an **Azure API Management (APIM) StandardV2** instance 
 │                             │  & PE Subnet    │             │
 │                             └─────────────────┘             │
 └─────────────────────────────────────────────────────────────┘
-                                       │
-                              DNS Zone Group
-                                       │
-┌─────────────────────────────────────────────────────────────┐
-│  DNS Zones Subscription (CAF Connectivity)                  │
-│                                                             │
-│  ┌─────────────────────────────────────────┐                │
-│  │  privatelink.azure-api.net (existing)   │                │
-│  └─────────────────────────────────────────┘                │
-└─────────────────────────────────────────────────────────────┘
+
+  DNS Zone Group & privatelink.azure-api.net assumed to exist
+  (managed externally, e.g. Azure Policy / CAF connectivity hub)
 ```
 
 ## Prerequisites
@@ -37,9 +32,9 @@ This accelerator deploys an **Azure API Management (APIM) StandardV2** instance 
 | Prerequisite | Details |
 |---|---|
 | **Virtual Network** | An existing VNet with a subnet designated for private endpoints. |
-| **Private DNS Zone** | `privatelink.azure-api.net` must already exist in the DNS zones subscription. |
+| **Private DNS Zone** | `privatelink.azure-api.net` must already exist with a DNS Zone Group configured (e.g. via Azure Policy) so that A records are auto-created for private endpoints. |
 | **VNet ↔ DNS Link** | The VNet (or its DNS resolver) must be linked to the private DNS zone so that clients can resolve the APIM private endpoint address. |
-| **Permissions** | Contributor on the APIM resource group; Reader on the VNet resource group; Private DNS Zone Contributor on the DNS zones resource group. |
+| **Permissions** | Contributor on the APIM resource group; Reader on the VNet resource group. |
 
 ## Parameters
 
@@ -53,8 +48,6 @@ This accelerator deploys an **Azure API Management (APIM) StandardV2** instance 
 | `vnetName` | **Yes** | — | Name of the existing VNet. |
 | `vnetResourceGroupName` | No | current RG | Resource group that contains the VNet. |
 | `peSubnetName` | No | `pe-subnet` | Subnet name for the private endpoint. |
-| `dnsZonesSubscriptionId` | No | current subscription | Subscription ID where `privatelink.azure-api.net` lives. |
-| `dnsZonesResourceGroupName` | **Yes** | — | Resource group that contains the private DNS zone. |
 | `publicNetworkAccess` | No | `Disabled` | Set to `Enabled` for hybrid (public + private) access. |
 
 ## Deploy

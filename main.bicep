@@ -1,8 +1,9 @@
 // ============================================================================
 // Azure API Management - StandardV2 with Private Endpoint
 // Deploys APIM StandardV2 with private connectivity via a private endpoint
-// in an existing VNet. References existing private DNS zones in a separate
-// subscription following the Cloud Adoption Framework (CAF) best practices.
+// in an existing VNet. DNS Zone Group creation is assumed to be managed
+// externally (e.g. by Azure Policy or a centralised connectivity team)
+// following Cloud Adoption Framework (CAF) best practices.
 // ============================================================================
 
 targetScope = 'resourceGroup'
@@ -63,12 +64,6 @@ param vnetResourceGroupName string = resourceGroup().name
 @description('Name of the existing subnet for private endpoints.')
 param peSubnetName string = 'pe-subnet'
 
-@description('Subscription ID where existing private DNS zones are located (following CAF hub-spoke model). Defaults to the current subscription if not specified.')
-param dnsZonesSubscriptionId string = subscription().subscriptionId
-
-@description('Resource group name where existing private DNS zones are located.')
-param dnsZonesResourceGroupName string
-
 @description('Whether to disable public network access to the APIM gateway. Set to Enabled if you need hybrid access.')
 @allowed([
   'Enabled'
@@ -80,10 +75,8 @@ param publicNetworkAccess string = 'Disabled'
 // Variables
 // ============================================================================
 
-var privateDnsZoneName = 'privatelink.azure-api.net'
 var privateEndpointName = '${apimName}-pe'
 var privateLinkServiceConnectionName = '${apimName}-plsc'
-var effectiveDnsSubscriptionId = dnsZonesSubscriptionId
 
 // ============================================================================
 // Existing Resources
@@ -99,12 +92,6 @@ resource existingVnet 'Microsoft.Network/virtualNetworks@2024-01-01' existing = 
 resource existingPeSubnet 'Microsoft.Network/virtualNetworks/subnets@2024-01-01' existing = {
   name: peSubnetName
   parent: existingVnet
-}
-
-// Reference the existing Private DNS Zone in the DNS subscription (CAF pattern)
-resource existingPrivateDnsZone 'Microsoft.Network/privateDnsZones@2020-06-01' existing = {
-  name: privateDnsZoneName
-  scope: resourceGroup(effectiveDnsSubscriptionId, dnsZonesResourceGroupName)
 }
 
 // ============================================================================
@@ -147,25 +134,6 @@ resource apimPrivateEndpoint 'Microsoft.Network/privateEndpoints@2024-01-01' = {
           groupIds: [
             'Gateway'
           ]
-        }
-      }
-    ]
-  }
-}
-
-// ============================================================================
-// Private DNS Zone Group (links PE to existing DNS zone for automatic A record)
-// ============================================================================
-
-resource privateDnsZoneGroup 'Microsoft.Network/privateEndpoints/privateDnsZoneGroups@2024-01-01' = {
-  name: 'default'
-  parent: apimPrivateEndpoint
-  properties: {
-    privateDnsZoneConfigs: [
-      {
-        name: replace(privateDnsZoneName, '.', '-')
-        properties: {
-          privateDnsZoneId: existingPrivateDnsZone.id
         }
       }
     ]

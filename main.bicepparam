@@ -21,8 +21,4 @@ param vnetResourceGroupName = 'rg-networking'
 
 param peSubnetName = 'snet-privateendpoints'
 
-param dnsZonesSubscriptionId = '<dns-zones-subscription-id>'
-
-param dnsZonesResourceGroupName = 'rg-privatedns'
-
 param publicNetworkAccess = 'Disabled'

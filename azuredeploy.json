@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.41.2.15936",
-      "templateHash": "1440248814891059831"
+      "templateHash": "16724395255013085783"
     }
   },
   "parameters": {
@@ -89,19 +89,6 @@
         "description": "Name of the existing subnet for private endpoints."
       }
     },
-    "dnsZonesSubscriptionId": {
-      "type": "string",
-      "defaultValue": "[subscription().subscriptionId]",
-      "metadata": {
-        "description": "Subscription ID where existing private DNS zones are located (following CAF hub-spoke model). Defaults to the current subscription if not specified."
-      }
-    },
-    "dnsZonesResourceGroupName": {
-      "type": "string",
-      "metadata": {
-        "description": "Resource group name where existing private DNS zones are located."
-      }
-    },
     "publicNetworkAccess": {
       "type": "string",
       "defaultValue": "Disabled",
@@ -115,10 +102,8 @@
     }
   },
   "variables": {
-    "privateDnsZoneName": "privatelink.azure-api.net",
     "privateEndpointName": "[format('{0}-pe', parameters('apimName'))]",
-    "privateLinkServiceConnectionName": "[format('{0}-plsc', parameters('apimName'))]",
-    "effectiveDnsSubscriptionId": "[parameters('dnsZonesSubscriptionId')]"
+    "privateLinkServiceConnectionName": "[format('{0}-plsc', parameters('apimName'))]"
   },
   "resources": [
     {
@@ -162,24 +147,6 @@
       },
       "dependsOn": [
         "[resourceId('Microsoft.ApiManagement/service', parameters('apimName'))]"
-      ]
-    },
-    {
-      "type": "Microsoft.Network/privateEndpoints/privateDnsZoneGroups",
-      "apiVersion": "2024-01-01",
-      "name": "[format('{0}/{1}', variables('privateEndpointName'), 'default')]",
-      "properties": {
-        "privateDnsZoneConfigs": [
-          {
-            "name": "[replace(variables('privateDnsZoneName'), '.', '-')]",
-            "properties": {
-              "privateDnsZoneId": "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', variables('effectiveDnsSubscriptionId'), parameters('dnsZonesResourceGroupName')), 'Microsoft.Network/privateDnsZones', variables('privateDnsZoneName'))]"
-            }
-          }
-        ]
-      },
-      "dependsOn": [
-        "[resourceId('Microsoft.Network/privateEndpoints', variables('privateEndpointName'))]"
       ]
     }
   ],
