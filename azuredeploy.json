@@ -1,0 +1,190 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "metadata": {
+    "_generator": {
+      "name": "bicep",
+      "version": "0.41.2.15936",
+      "templateHash": "16724395255013085783"
+    }
+  },
+  "parameters": {
+    "location": {
+      "type": "string",
+      "defaultValue": "eastus",
+      "allowedValues": [
+        "australiaeast",
+        "brazilsouth",
+        "canadaeast",
+        "eastus",
+        "eastus2",
+        "francecentral",
+        "germanywestcentral",
+        "italynorth",
+        "japaneast",
+        "koreacentral",
+        "norwayeast",
+        "polandcentral",
+        "southafricanorth",
+        "southcentralus",
+        "southindia",
+        "spaincentral",
+        "swedencentral",
+        "switzerlandnorth",
+        "uaenorth",
+        "uksouth",
+        "westeurope",
+        "westus",
+        "westus3"
+      ],
+      "metadata": {
+        "description": "Location for all resources."
+      }
+    },
+    "apimName": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 50,
+      "metadata": {
+        "description": "Name for the API Management service instance. Must be globally unique."
+      }
+    },
+    "publisherEmail": {
+      "type": "string",
+      "metadata": {
+        "description": "Publisher email address for the APIM instance."
+      }
+    },
+    "publisherName": {
+      "type": "string",
+      "metadata": {
+        "description": "Publisher organization name for the APIM instance."
+      }
+    },
+    "skuCapacity": {
+      "type": "int",
+      "defaultValue": 1,
+      "minValue": 1,
+      "metadata": {
+        "description": "SKU capacity (scale units) for the APIM StandardV2 instance."
+      }
+    },
+    "vnetName": {
+      "type": "string",
+      "metadata": {
+        "description": "Name of the existing Virtual Network."
+      }
+    },
+    "vnetResourceGroupName": {
+      "type": "string",
+      "defaultValue": "[resourceGroup().name]",
+      "metadata": {
+        "description": "Resource group name of the existing Virtual Network. Defaults to the current resource group."
+      }
+    },
+    "peSubnetName": {
+      "type": "string",
+      "defaultValue": "pe-subnet",
+      "metadata": {
+        "description": "Name of the existing subnet for private endpoints."
+      }
+    },
+    "publicNetworkAccess": {
+      "type": "string",
+      "defaultValue": "Disabled",
+      "allowedValues": [
+        "Enabled",
+        "Disabled"
+      ],
+      "metadata": {
+        "description": "Whether to disable public network access to the APIM gateway. Set to Enabled if you need hybrid access."
+      }
+    }
+  },
+  "variables": {
+    "privateEndpointName": "[format('{0}-pe', parameters('apimName'))]",
+    "privateLinkServiceConnectionName": "[format('{0}-plsc', parameters('apimName'))]"
+  },
+  "resources": [
+    {
+      "type": "Microsoft.ApiManagement/service",
+      "apiVersion": "2024-05-01",
+      "name": "[parameters('apimName')]",
+      "location": "[parameters('location')]",
+      "sku": {
+        "name": "StandardV2",
+        "capacity": "[parameters('skuCapacity')]"
+      },
+      "identity": {
+        "type": "SystemAssigned"
+      },
+      "properties": {
+        "publisherEmail": "[parameters('publisherEmail')]",
+        "publisherName": "[parameters('publisherName')]",
+        "publicNetworkAccess": "[parameters('publicNetworkAccess')]"
+      }
+    },
+    {
+      "type": "Microsoft.Network/privateEndpoints",
+      "apiVersion": "2024-01-01",
+      "name": "[variables('privateEndpointName')]",
+      "location": "[parameters('location')]",
+      "properties": {
+        "subnet": {
+          "id": "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('vnetResourceGroupName')), 'Microsoft.Network/virtualNetworks/subnets', parameters('vnetName'), parameters('peSubnetName'))]"
+        },
+        "privateLinkServiceConnections": [
+          {
+            "name": "[variables('privateLinkServiceConnectionName')]",
+            "properties": {
+              "privateLinkServiceId": "[resourceId('Microsoft.ApiManagement/service', parameters('apimName'))]",
+              "groupIds": [
+                "Gateway"
+              ]
+            }
+          }
+        ]
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.ApiManagement/service', parameters('apimName'))]"
+      ]
+    }
+  ],
+  "outputs": {
+    "apimServiceId": {
+      "type": "string",
+      "metadata": {
+        "description": "Resource ID of the APIM service."
+      },
+      "value": "[resourceId('Microsoft.ApiManagement/service', parameters('apimName'))]"
+    },
+    "apimServiceName": {
+      "type": "string",
+      "metadata": {
+        "description": "Name of the APIM service."
+      },
+      "value": "[parameters('apimName')]"
+    },
+    "apimGatewayUrl": {
+      "type": "string",
+      "metadata": {
+        "description": "Gateway URL of the APIM service."
+      },
+      "value": "[reference(resourceId('Microsoft.ApiManagement/service', parameters('apimName')), '2024-05-01').gatewayUrl]"
+    },
+    "privateEndpointId": {
+      "type": "string",
+      "metadata": {
+        "description": "Resource ID of the private endpoint."
+      },
+      "value": "[resourceId('Microsoft.Network/privateEndpoints', variables('privateEndpointName'))]"
+    },
+    "apimPrincipalId": {
+      "type": "string",
+      "metadata": {
+        "description": "Principal ID of the APIM system-assigned managed identity."
+      },
+      "value": "[reference(resourceId('Microsoft.ApiManagement/service', parameters('apimName')), '2024-05-01', 'full').identity.principalId]"
+    }
+  }
+}
