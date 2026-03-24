@@ -53,7 +53,7 @@ This accelerator deploys an **Azure API Management (APIM) StandardV2** instance 
 | `vnetName` | **Yes** | — | Name of the existing VNet. |
 | `vnetResourceGroupName` | No | current RG | Resource group that contains the VNet. |
 | `peSubnetName` | No | `pe-subnet` | Subnet name for the private endpoint. |
-| `dnsZonesSubscriptionId` | **Yes** | — | Subscription ID where `privatelink.azure-api.net` lives. Leave empty to use the current subscription. |
+| `dnsZonesSubscriptionId` | No | current subscription | Subscription ID where `privatelink.azure-api.net` lives. |
 | `dnsZonesResourceGroupName` | **Yes** | — | Resource group that contains the private DNS zone. |
 | `publicNetworkAccess` | No | `Disabled` | Set to `Enabled` for hybrid (public + private) access. |
 

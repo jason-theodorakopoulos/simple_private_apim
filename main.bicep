@@ -63,8 +63,8 @@ param vnetResourceGroupName string = resourceGroup().name
 @description('Name of the existing subnet for private endpoints.')
 param peSubnetName string = 'pe-subnet'
 
-@description('Subscription ID where existing private DNS zones are located (following CAF hub-spoke model). Leave empty to use the current subscription.')
-param dnsZonesSubscriptionId string
+@description('Subscription ID where existing private DNS zones are located (following CAF hub-spoke model). Defaults to the current subscription if not specified.')
+param dnsZonesSubscriptionId string = subscription().subscriptionId
 
 @description('Resource group name where existing private DNS zones are located.')
 param dnsZonesResourceGroupName string
@@ -83,9 +83,7 @@ param publicNetworkAccess string = 'Disabled'
 var privateDnsZoneName = 'privatelink.azure-api.net'
 var privateEndpointName = '${apimName}-pe'
 var privateLinkServiceConnectionName = '${apimName}-plsc'
-var effectiveDnsSubscriptionId = empty(dnsZonesSubscriptionId)
-  ? subscription().subscriptionId
-  : dnsZonesSubscriptionId
+var effectiveDnsSubscriptionId = dnsZonesSubscriptionId
 
 // ============================================================================
 // Existing Resources

@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.41.2.15936",
-      "templateHash": "9279048149969290455"
+      "templateHash": "1440248814891059831"
     }
   },
   "parameters": {
@@ -91,8 +91,9 @@
     },
     "dnsZonesSubscriptionId": {
       "type": "string",
+      "defaultValue": "[subscription().subscriptionId]",
       "metadata": {
-        "description": "Subscription ID where existing private DNS zones are located (following CAF hub-spoke model). Leave empty to use the current subscription."
+        "description": "Subscription ID where existing private DNS zones are located (following CAF hub-spoke model). Defaults to the current subscription if not specified."
       }
     },
     "dnsZonesResourceGroupName": {
@@ -117,7 +118,7 @@
     "privateDnsZoneName": "privatelink.azure-api.net",
     "privateEndpointName": "[format('{0}-pe', parameters('apimName'))]",
     "privateLinkServiceConnectionName": "[format('{0}-plsc', parameters('apimName'))]",
-    "effectiveDnsSubscriptionId": "[if(empty(parameters('dnsZonesSubscriptionId')), subscription().subscriptionId, parameters('dnsZonesSubscriptionId'))]"
+    "effectiveDnsSubscriptionId": "[parameters('dnsZonesSubscriptionId')]"
   },
   "resources": [
     {
