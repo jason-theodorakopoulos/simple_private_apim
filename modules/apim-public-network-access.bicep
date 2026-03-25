@@ -1,8 +1,13 @@
 // ============================================================================
 // Module: Update APIM publicNetworkAccess
-// Re-deploys the APIM service to set publicNetworkAccess after the private
-// endpoint has been created. Azure does not allow disabling public access
-// during the initial service creation.
+// Re-deploys (PUT) the APIM service to set publicNetworkAccess after the
+// private endpoint has been created. Azure does not allow disabling public
+// access during the initial service creation.
+//
+// NOTE: ARM/Bicep only supports PUT (full resource deployment), not PATCH.
+// All required properties are passed through from the parent template to
+// ensure an idempotent update. If APIM properties are modified outside of
+// this template between deployments, those changes may be overwritten.
 // ============================================================================
 
 @description('Name of the existing API Management service instance.')
