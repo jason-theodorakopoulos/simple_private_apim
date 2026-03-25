@@ -98,6 +98,9 @@ resource existingPeSubnet 'Microsoft.Network/virtualNetworks/subnets@2024-01-01'
 // API Management Service - StandardV2
 // ============================================================================
 
+// Azure does not allow publicNetworkAccess = 'Disabled' during initial service
+// creation. The service is always created with public access enabled; it is
+// disabled in a follow-up module deployment after the private endpoint exists.
 resource apimService 'Microsoft.ApiManagement/service@2024-05-01' = {
   name: apimName
   location: location
@@ -111,7 +114,7 @@ resource apimService 'Microsoft.ApiManagement/service@2024-05-01' = {
   properties: {
     publisherEmail: publisherEmail
     publisherName: publisherName
-    publicNetworkAccess: publicNetworkAccess
+    publicNetworkAccess: 'Enabled'
   }
 }
 
@@ -138,6 +141,28 @@ resource apimPrivateEndpoint 'Microsoft.Network/privateEndpoints@2024-01-01' = {
       }
     ]
   }
+}
+
+// ============================================================================
+// Disable Public Network Access (post-creation)
+// ============================================================================
+
+// Azure requires APIM to be created with public access enabled. This module
+// updates the service to disable public access once the private endpoint is
+// in place. The module is skipped when publicNetworkAccess is 'Enabled'.
+module disablePublicAccess 'modules/apim-public-network-access.bicep' = if (publicNetworkAccess == 'Disabled') {
+  name: 'disable-public-network-access'
+  params: {
+    apimName: apimName
+    location: location
+    publisherEmail: publisherEmail
+    publisherName: publisherName
+    skuCapacity: skuCapacity
+    publicNetworkAccess: 'Disabled'
+  }
+  dependsOn: [
+    apimPrivateEndpoint
+  ]
 }
 
 // ============================================================================
