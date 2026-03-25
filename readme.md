@@ -50,6 +50,15 @@ This accelerator deploys an **Azure API Management (APIM) StandardV2** instance 
 | `peSubnetName` | No | `pe-subnet` | Subnet name for the private endpoint. |
 | `publicNetworkAccess` | No | `Disabled` | Set to `Enabled` for hybrid (public + private) access. |
 
+## Deployment behaviour – `publicNetworkAccess`
+
+Azure does not allow `publicNetworkAccess` to be set to `Disabled` during the initial creation of an API Management service. To work around this, the template uses a **two-phase** approach:
+
+1. **Phase 1** – The APIM service is created with `publicNetworkAccess: Enabled` and the private endpoint is provisioned.
+2. **Phase 2** – A follow-up nested deployment updates the APIM service to set `publicNetworkAccess: Disabled` (when the parameter is set to `Disabled`, which is the default).
+
+This is fully automated within a single `az deployment group create` invocation — no manual steps are required.
+
 ## Deploy
 
 ### Option 1 – Azure Portal (Deploy to Azure button)
@@ -92,4 +101,5 @@ New-AzResourceGroupDeployment `
 |---|---|
 | `main.bicep` | Bicep template (source of truth). |
 | `main.bicepparam` | Bicep native parameter file – edit with your values. |
+| `modules/apim-public-network-access.bicep` | Helper module that updates `publicNetworkAccess` after PE creation. |
 | `azuredeploy.json` | Compiled ARM template used by the *Deploy to Azure* button. |
