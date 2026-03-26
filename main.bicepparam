@@ -22,3 +22,9 @@ param vnetResourceGroupName = 'rg-networking'
 param peSubnetName = 'snet-privateendpoints'
 
 param publicNetworkAccess = 'Disabled'
+
+param privateDnsZoneSubscriptionId = '<connectivity-subscription-id>'
+
+param privateDnsZoneResourceGroupName = 'rg-connectivity-dns'
+
+param privateDnsZoneName = 'privatelink.azure-api.net'
