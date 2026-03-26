@@ -22,7 +22,14 @@ param publisherEmail string
 @description('Publisher organization name for the APIM instance.')
 param publisherName string
 
-@description('SKU capacity (scale units) for the APIM StandardV2 instance.')
+@description('SKU tier for the API Management instance.')
+@allowed([
+  'StandardV2'
+  'Developer'
+])
+param skuName string
+
+@description('SKU capacity (scale units) for the APIM instance.')
 @minValue(1)
 param skuCapacity int
 
@@ -37,7 +44,7 @@ resource apimService 'Microsoft.ApiManagement/service@2024-05-01' = {
   name: apimName
   location: location
   sku: {
-    name: 'StandardV2'
+    name: skuName
     capacity: skuCapacity
   }
   identity: {

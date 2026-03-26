@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.41.2.15936",
-      "templateHash": "4229243617463964876"
+      "templateHash": "4295628560079560994"
     }
   },
   "parameters": {
@@ -61,12 +61,23 @@
         "description": "Publisher organization name for the APIM instance."
       }
     },
+    "skuName": {
+      "type": "string",
+      "defaultValue": "StandardV2",
+      "allowedValues": [
+        "StandardV2",
+        "Developer"
+      ],
+      "metadata": {
+        "description": "SKU tier for the API Management instance."
+      }
+    },
     "skuCapacity": {
       "type": "int",
       "defaultValue": 1,
       "minValue": 1,
       "metadata": {
-        "description": "SKU capacity (scale units) for the APIM StandardV2 instance."
+        "description": "SKU capacity (scale units) for the APIM instance. Developer tier only supports a capacity of 1."
       }
     },
     "vnetName": {
@@ -133,7 +144,7 @@
       "name": "[parameters('apimName')]",
       "location": "[parameters('location')]",
       "sku": {
-        "name": "StandardV2",
+        "name": "[parameters('skuName')]",
         "capacity": "[parameters('skuCapacity')]"
       },
       "identity": {
@@ -211,6 +222,9 @@
           "publisherName": {
             "value": "[parameters('publisherName')]"
           },
+          "skuName": {
+            "value": "[parameters('skuName')]"
+          },
           "skuCapacity": {
             "value": "[parameters('skuCapacity')]"
           },
@@ -225,7 +239,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.41.2.15936",
-              "templateHash": "13373124621470964197"
+              "templateHash": "7169228011873989093"
             }
           },
           "parameters": {
@@ -253,11 +267,21 @@
                 "description": "Publisher organization name for the APIM instance."
               }
             },
+            "skuName": {
+              "type": "string",
+              "allowedValues": [
+                "StandardV2",
+                "Developer"
+              ],
+              "metadata": {
+                "description": "SKU tier for the API Management instance."
+              }
+            },
             "skuCapacity": {
               "type": "int",
               "minValue": 1,
               "metadata": {
-                "description": "SKU capacity (scale units) for the APIM StandardV2 instance."
+                "description": "SKU capacity (scale units) for the APIM instance."
               }
             },
             "publicNetworkAccess": {
@@ -278,7 +302,7 @@
               "name": "[parameters('apimName')]",
               "location": "[parameters('location')]",
               "sku": {
-                "name": "StandardV2",
+                "name": "[parameters('skuName')]",
                 "capacity": "[parameters('skuCapacity')]"
               },
               "identity": {

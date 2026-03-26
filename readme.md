@@ -1,8 +1,8 @@
-# Azure API Management – StandardV2 with Private Endpoint
+# Azure API Management – Private Endpoint Accelerator
 
 [![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Fjason-theodorakopoulos%2Fsimple_private_apim%2Fmain%2Fazuredeploy.json)
 
-This accelerator deploys an **Azure API Management (APIM) StandardV2** instance with **private connectivity** via a private endpoint in an existing virtual network. It creates a **DNS Zone Group** that references an existing private DNS zone — even if that zone lives in a different subscription and resource group (common in CAF hub-spoke topologies).
+This accelerator deploys an **Azure API Management (APIM)** instance (**StandardV2** or **Developer** tier) with **private connectivity** via a private endpoint in an existing virtual network. It creates a **DNS Zone Group** that references an existing private DNS zone — even if that zone lives in a different subscription and resource group (common in CAF hub-spoke topologies).
 
 ## Architecture
 
@@ -12,7 +12,7 @@ This accelerator deploys an **Azure API Management (APIM) StandardV2** instance 
 │                                                             │
 │  ┌───────────────────┐    ┌──────────────────────────────┐  │
 │  │  API Management   │◄───│  Private Endpoint            │  │
-│  │  (StandardV2)     │    │  (in existing PE subnet)     │  │
+│  │  (Stv2/Developer) │    │  (in existing PE subnet)     │  │
 │  │  publicAccess:Off │    └──────────┬───────────────────┘  │
 │  └───────────────────┘               │                      │
 │                             ┌────────┴────────┐             │
@@ -46,10 +46,11 @@ This accelerator deploys an **Azure API Management (APIM) StandardV2** instance 
 | Parameter | Required | Default | Description |
 |---|---|---|---|
 | `location` | No | `eastus` | Azure region (restricted to regions that support StandardV2). |
+| `skuName` | No | `StandardV2` | APIM SKU tier: `StandardV2` or `Developer`. |
 | `apimName` | **Yes** | — | Globally unique name for the APIM instance. |
 | `publisherEmail` | **Yes** | — | Publisher email address shown in the developer portal. |
 | `publisherName` | **Yes** | — | Publisher organisation name. |
-| `skuCapacity` | No | `1` | Number of StandardV2 scale units. |
+| `skuCapacity` | No | `1` | Number of scale units. Developer tier only supports a capacity of `1`. |
 | `vnetName` | **Yes** | — | Name of the existing VNet. |
 | `vnetResourceGroupName` | No | current RG | Resource group that contains the VNet. |
 | `peSubnetName` | No | `pe-subnet` | Subnet name for the private endpoint. |
