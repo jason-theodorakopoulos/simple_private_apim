@@ -28,5 +28,3 @@ param privateDnsZoneSubscriptionId = '<connectivity-subscription-id>'
 param privateDnsZoneResourceGroupName = 'rg-connectivity-dns'
 
 param privateDnsZoneName = 'privatelink.azure-api.net'
-
-param createDnsZoneGroup = true

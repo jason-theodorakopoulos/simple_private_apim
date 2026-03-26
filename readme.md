@@ -2,7 +2,7 @@
 
 [![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Fjason-theodorakopoulos%2Fsimple_private_apim%2Fmain%2Fazuredeploy.json)
 
-This accelerator deploys an **Azure API Management (APIM) StandardV2** instance with **private connectivity** via a private endpoint in an existing virtual network. It optionally creates a **DNS Zone Group** that references an existing private DNS zone — even if that zone lives in a different subscription and resource group (common in CAF hub-spoke topologies).
+This accelerator deploys an **Azure API Management (APIM) StandardV2** instance with **private connectivity** via a private endpoint in an existing virtual network. It creates a **DNS Zone Group** that references an existing private DNS zone — even if that zone lives in a different subscription and resource group (common in CAF hub-spoke topologies).
 
 ## Architecture
 
@@ -37,9 +37,9 @@ This accelerator deploys an **Azure API Management (APIM) StandardV2** instance 
 | Prerequisite | Details |
 |---|---|
 | **Virtual Network** | An existing VNet with a subnet designated for private endpoints. |
-| **Private DNS Zone** | `privatelink.azure-api.net` must already exist (typically in a central connectivity subscription/resource group). When `createDnsZoneGroup` is `true` (default), the template creates the DNS Zone Group and A record automatically. |
+| **Private DNS Zone** | `privatelink.azure-api.net` must already exist (typically in a central connectivity subscription/resource group). The template creates the DNS Zone Group and A record automatically. |
 | **VNet ↔ DNS Link** | The VNet (or its DNS resolver) must be linked to the private DNS zone so that clients can resolve the APIM private endpoint address. |
-| **Permissions** | Contributor on the APIM resource group; Reader on the VNet resource group; Network Contributor (or Private DNS Zone Contributor) on the DNS zone resource group when `createDnsZoneGroup` is `true`. |
+| **Permissions** | Contributor on the APIM resource group; Reader on the VNet resource group; Network Contributor (or Private DNS Zone Contributor) on the DNS zone resource group. |
 
 ## Parameters
 
@@ -54,10 +54,9 @@ This accelerator deploys an **Azure API Management (APIM) StandardV2** instance 
 | `vnetResourceGroupName` | No | current RG | Resource group that contains the VNet. |
 | `peSubnetName` | No | `pe-subnet` | Subnet name for the private endpoint. |
 | `publicNetworkAccess` | No | `Disabled` | Set to `Enabled` for hybrid (public + private) access. |
-| `privateDnsZoneSubscriptionId` | No | current sub | Subscription ID where the private DNS zone resides. |
-| `privateDnsZoneResourceGroupName` | No | current RG | Resource group that contains the private DNS zone. |
+| `privateDnsZoneSubscriptionId` | No | current sub | Subscription ID where the existing private DNS zone resides. |
+| `privateDnsZoneResourceGroupName` | No | current RG | Resource group that contains the existing private DNS zone. |
 | `privateDnsZoneName` | No | `privatelink.azure-api.net` | Name of the existing private DNS zone. |
-| `createDnsZoneGroup` | No | `true` | Create a DNS Zone Group on the PE to auto-register the A record. Set to `false` if DNS is managed externally (e.g. Azure Policy). |
 
 ## Deployment behaviour – `publicNetworkAccess`
 

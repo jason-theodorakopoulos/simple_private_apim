@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.41.2.15936",
-      "templateHash": "15333978689322218810"
+      "templateHash": "4229243617463964876"
     }
   },
   "parameters": {
@@ -104,14 +104,14 @@
       "type": "string",
       "defaultValue": "[subscription().subscriptionId]",
       "metadata": {
-        "description": "Subscription ID where the private DNS zone resides. Required when createDnsZoneGroup is true."
+        "description": "Subscription ID where the existing private DNS zone resides. Defaults to the current subscription."
       }
     },
     "privateDnsZoneResourceGroupName": {
       "type": "string",
       "defaultValue": "[resourceGroup().name]",
       "metadata": {
-        "description": "Resource group name where the private DNS zone resides. Required when createDnsZoneGroup is true."
+        "description": "Resource group name where the existing private DNS zone resides. Defaults to the current resource group."
       }
     },
     "privateDnsZoneName": {
@@ -119,13 +119,6 @@
       "defaultValue": "privatelink.azure-api.net",
       "metadata": {
         "description": "Name of the existing private DNS zone for APIM (e.g. privatelink.azure-api.net)."
-      }
-    },
-    "createDnsZoneGroup": {
-      "type": "bool",
-      "defaultValue": true,
-      "metadata": {
-        "description": "Set to true to create a DNS Zone Group on the private endpoint that registers the A record in the private DNS zone. Set to false if DNS is managed externally (e.g. by Azure Policy)."
       }
     }
   },
@@ -178,7 +171,6 @@
       ]
     },
     {
-      "condition": "[parameters('createDnsZoneGroup')]",
       "type": "Microsoft.Network/privateEndpoints/privateDnsZoneGroups",
       "apiVersion": "2024-01-01",
       "name": "[format('{0}/{1}', variables('privateEndpointName'), 'default')]",

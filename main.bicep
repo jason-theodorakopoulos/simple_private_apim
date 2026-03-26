@@ -1,9 +1,9 @@
 // ============================================================================
 // Azure API Management - StandardV2 with Private Endpoint
 // Deploys APIM StandardV2 with private connectivity via a private endpoint
-// in an existing VNet. Optionally creates a DNS Zone Group that references
-// a private DNS zone in another subscription / resource group so that the
-// private endpoint A record is registered automatically.
+// in an existing VNet. Creates a DNS Zone Group that references an existing
+// private DNS zone (which may reside in another subscription / resource group)
+// so that the private endpoint A record is registered automatically.
 // ============================================================================
 
 targetScope = 'resourceGroup'
@@ -71,17 +71,14 @@ param peSubnetName string = 'pe-subnet'
 ])
 param publicNetworkAccess string = 'Disabled'
 
-@description('Subscription ID where the private DNS zone resides. Required when createDnsZoneGroup is true.')
+@description('Subscription ID where the existing private DNS zone resides. Defaults to the current subscription.')
 param privateDnsZoneSubscriptionId string = subscription().subscriptionId
 
-@description('Resource group name where the private DNS zone resides. Required when createDnsZoneGroup is true.')
+@description('Resource group name where the existing private DNS zone resides. Defaults to the current resource group.')
 param privateDnsZoneResourceGroupName string = resourceGroup().name
 
 @description('Name of the existing private DNS zone for APIM (e.g. privatelink.azure-api.net).')
 param privateDnsZoneName string = 'privatelink.azure-api.net'
-
-@description('Set to true to create a DNS Zone Group on the private endpoint that registers the A record in the private DNS zone. Set to false if DNS is managed externally (e.g. by Azure Policy).')
-param createDnsZoneGroup bool = true
 
 // ============================================================================
 // Variables
@@ -107,7 +104,7 @@ resource existingPeSubnet 'Microsoft.Network/virtualNetworks/subnets@2024-01-01'
 }
 
 // Reference the existing private DNS zone (may be in a different subscription and resource group)
-resource existingPrivateDnsZone 'Microsoft.Network/privateDnsZones@2024-06-01' existing = if (createDnsZoneGroup) {
+resource existingPrivateDnsZone 'Microsoft.Network/privateDnsZones@2024-06-01' existing = {
   name: privateDnsZoneName
   scope: resourceGroup(privateDnsZoneSubscriptionId, privateDnsZoneResourceGroupName)
 }
@@ -162,14 +159,14 @@ resource apimPrivateEndpoint 'Microsoft.Network/privateEndpoints@2024-01-01' = {
 }
 
 // ============================================================================
-// Private DNS Zone Group (optional)
+// Private DNS Zone Group
 // ============================================================================
 
 // Creates a DNS Zone Group on the private endpoint so that the A record for
-// the APIM gateway is automatically registered in the specified private DNS
+// the APIM gateway is automatically registered in the existing private DNS
 // zone. The DNS zone may live in a different subscription and resource group
 // (common in CAF hub-spoke topologies).
-resource dnsZoneGroup 'Microsoft.Network/privateEndpoints/privateDnsZoneGroups@2024-01-01' = if (createDnsZoneGroup) {
+resource dnsZoneGroup 'Microsoft.Network/privateEndpoints/privateDnsZoneGroups@2024-01-01' = {
   name: 'default'
   parent: apimPrivateEndpoint
   properties: {
