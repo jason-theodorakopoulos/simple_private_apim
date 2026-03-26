@@ -1,0 +1,84 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "metadata": {
+    "_generator": {
+      "name": "bicep",
+      "version": "0.41.2.15936",
+      "templateHash": "7169228011873989093"
+    }
+  },
+  "parameters": {
+    "apimName": {
+      "type": "string",
+      "metadata": {
+        "description": "Name of the existing API Management service instance."
+      }
+    },
+    "location": {
+      "type": "string",
+      "metadata": {
+        "description": "Location must match the existing APIM instance."
+      }
+    },
+    "publisherEmail": {
+      "type": "string",
+      "metadata": {
+        "description": "Publisher email address for the APIM instance."
+      }
+    },
+    "publisherName": {
+      "type": "string",
+      "metadata": {
+        "description": "Publisher organization name for the APIM instance."
+      }
+    },
+    "skuName": {
+      "type": "string",
+      "allowedValues": [
+        "StandardV2",
+        "Developer"
+      ],
+      "metadata": {
+        "description": "SKU tier for the API Management instance."
+      }
+    },
+    "skuCapacity": {
+      "type": "int",
+      "minValue": 1,
+      "metadata": {
+        "description": "SKU capacity (scale units) for the APIM instance."
+      }
+    },
+    "publicNetworkAccess": {
+      "type": "string",
+      "allowedValues": [
+        "Enabled",
+        "Disabled"
+      ],
+      "metadata": {
+        "description": "Whether to disable public network access to the APIM gateway."
+      }
+    }
+  },
+  "resources": [
+    {
+      "type": "Microsoft.ApiManagement/service",
+      "apiVersion": "2024-05-01",
+      "name": "[parameters('apimName')]",
+      "location": "[parameters('location')]",
+      "sku": {
+        "name": "[parameters('skuName')]",
+        "capacity": "[parameters('skuCapacity')]"
+      },
+      "identity": {
+        "type": "SystemAssigned"
+      },
+      "properties": {
+        "publisherEmail": "[parameters('publisherEmail')]",
+        "publisherName": "[parameters('publisherName')]",
+        "publicNetworkAccess": "[parameters('publicNetworkAccess')]"
+      }
+    }
+  ]
+}
