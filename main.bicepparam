@@ -1,11 +1,13 @@
 // ============================================================================
-// Parameter file for Azure API Management - StandardV2 with Private Endpoint
+// Parameter file for Azure API Management - Private Endpoint Accelerator
 // Update the values below to match your environment before deploying.
 // ============================================================================
 
 using './main.bicep'
 
 param location = 'eastus'
+
+param skuName = 'StandardV2'
 
 param apimName = 'apim-myorg-001'
 

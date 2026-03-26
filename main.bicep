@@ -1,9 +1,10 @@
 // ============================================================================
-// Azure API Management - StandardV2 with Private Endpoint
-// Deploys APIM StandardV2 with private connectivity via a private endpoint
-// in an existing VNet. Creates a DNS Zone Group that references an existing
-// private DNS zone (which may reside in another subscription / resource group)
-// so that the private endpoint A record is registered automatically.
+// Azure API Management - Private Endpoint Accelerator
+// Deploys APIM (StandardV2 or Developer tier) with private connectivity via
+// a private endpoint in an existing VNet. Creates a DNS Zone Group that
+// references an existing private DNS zone (which may reside in another
+// subscription / resource group) so that the private endpoint A record is
+// registered automatically.
 // ============================================================================
 
 targetScope = 'resourceGroup'
@@ -51,7 +52,14 @@ param publisherEmail string
 @description('Publisher organization name for the APIM instance.')
 param publisherName string
 
-@description('SKU capacity (scale units) for the APIM StandardV2 instance.')
+@description('SKU tier for the API Management instance.')
+@allowed([
+  'StandardV2'
+  'Developer'
+])
+param skuName string = 'StandardV2'
+
+@description('SKU capacity (scale units) for the APIM instance. Developer tier only supports a capacity of 1.')
 @minValue(1)
 param skuCapacity int = 1
 
@@ -110,7 +118,7 @@ resource existingPrivateDnsZone 'Microsoft.Network/privateDnsZones@2024-06-01' e
 }
 
 // ============================================================================
-// API Management Service - StandardV2
+// API Management Service
 // ============================================================================
 
 // Azure does not allow publicNetworkAccess = 'Disabled' during initial service
@@ -120,7 +128,7 @@ resource apimService 'Microsoft.ApiManagement/service@2024-05-01' = {
   name: apimName
   location: location
   sku: {
-    name: 'StandardV2'
+    name: skuName
     capacity: skuCapacity
   }
   identity: {
@@ -195,6 +203,7 @@ module disablePublicAccess 'modules/apim-public-network-access.bicep' = if (publ
     location: location
     publisherEmail: publisherEmail
     publisherName: publisherName
+    skuName: skuName
     skuCapacity: skuCapacity
     publicNetworkAccess: 'Disabled'
   }
