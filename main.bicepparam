@@ -23,7 +23,7 @@ param peSubnetName = 'snet-privateendpoints'
 
 param publicNetworkAccess = 'Disabled'
 
-param privateDnsZoneSubscriptionId = '00000000-0000-0000-0000-000000000000'
+param privateDnsZoneSubscriptionId = '<connectivity-subscription-id>'
 
 param privateDnsZoneResourceGroupName = 'rg-connectivity-dns'
 
