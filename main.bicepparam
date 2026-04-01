@@ -1,5 +1,5 @@
 // ============================================================================
-// Parameter file for Azure API Management - Private Endpoint Accelerator
+// Parameter file for Azure API Management - Private AI Gateway Accelerator
 // Update the values below to match your environment before deploying.
 // ============================================================================
 
@@ -22,6 +22,10 @@ param vnetName = 'vnet-hub-001'
 param vnetResourceGroupName = 'rg-networking'
 
 param peSubnetName = 'snet-privateendpoints'
+
+param apimSubnetName = 'apim-subnet'
+
+param virtualNetworkType = 'External'
 
 param publicNetworkAccess = 'Disabled'
 

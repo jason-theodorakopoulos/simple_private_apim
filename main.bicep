@@ -1,10 +1,12 @@
 // ============================================================================
-// Azure API Management - Private Endpoint Accelerator
+// Azure API Management - Private AI Gateway Accelerator
 // Deploys APIM (StandardV2 or Developer tier) with private connectivity via
-// a private endpoint in an existing VNet. Creates a DNS Zone Group that
-// references an existing private DNS zone (which may reside in another
-// subscription / resource group) so that the private endpoint A record is
-// registered automatically.
+// a private endpoint in an existing VNet. APIM is integrated into a dedicated
+// subnet ('apim-subnet') for outbound VNet connectivity to backend services
+// such as Azure AI Foundry LLMs. Creates a DNS Zone Group that references an
+// existing private DNS zone (which may reside in another subscription /
+// resource group) so that the private endpoint A record is registered
+// automatically.
 // ============================================================================
 
 targetScope = 'resourceGroup'
@@ -72,6 +74,16 @@ param vnetResourceGroupName string = resourceGroup().name
 @description('Name of the existing subnet for private endpoints.')
 param peSubnetName string = 'pe-subnet'
 
+@description('Name of the existing subnet for APIM VNet integration (outbound connectivity to backends such as Azure AI Foundry).')
+param apimSubnetName string = 'apim-subnet'
+
+@description('VNet integration mode for APIM. External: gateway is internet-facing but connected to VNet for outbound. Internal: gateway is only accessible within the VNet.')
+@allowed([
+  'External'
+  'Internal'
+])
+param virtualNetworkType string = 'External'
+
 @description('Whether to disable public network access to the APIM gateway. Set to Enabled if you need hybrid access.')
 @allowed([
   'Enabled'
@@ -111,6 +123,12 @@ resource existingPeSubnet 'Microsoft.Network/virtualNetworks/subnets@2024-01-01'
   parent: existingVnet
 }
 
+// Reference the existing APIM integration subnet
+resource existingApimSubnet 'Microsoft.Network/virtualNetworks/subnets@2024-01-01' existing = {
+  name: apimSubnetName
+  parent: existingVnet
+}
+
 // Reference the existing private DNS zone (may be in a different subscription and resource group)
 resource existingPrivateDnsZone 'Microsoft.Network/privateDnsZones@2020-06-01' existing = {
   name: privateDnsZoneName
@@ -138,6 +156,10 @@ resource apimService 'Microsoft.ApiManagement/service@2024-05-01' = {
     publisherEmail: publisherEmail
     publisherName: publisherName
     publicNetworkAccess: 'Enabled'
+    virtualNetworkType: virtualNetworkType
+    virtualNetworkConfiguration: {
+      subnetResourceId: existingApimSubnet.id
+    }
   }
 }
 
@@ -206,6 +228,8 @@ module disablePublicAccess 'modules/apim-public-network-access.bicep' = if (publ
     skuName: skuName
     skuCapacity: skuCapacity
     publicNetworkAccess: 'Disabled'
+    virtualNetworkType: virtualNetworkType
+    apimSubnetId: existingApimSubnet.id
   }
   dependsOn: [
     apimPrivateEndpoint

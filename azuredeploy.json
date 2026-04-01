@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.41.2.15936",
-      "templateHash": "4295628560079560994"
+      "templateHash": "8901564839319401292"
     }
   },
   "parameters": {
@@ -100,6 +100,24 @@
         "description": "Name of the existing subnet for private endpoints."
       }
     },
+    "apimSubnetName": {
+      "type": "string",
+      "defaultValue": "apim-subnet",
+      "metadata": {
+        "description": "Name of the existing subnet for APIM VNet integration (outbound connectivity to backends such as Azure AI Foundry)."
+      }
+    },
+    "virtualNetworkType": {
+      "type": "string",
+      "defaultValue": "External",
+      "allowedValues": [
+        "External",
+        "Internal"
+      ],
+      "metadata": {
+        "description": "VNet integration mode for APIM. External: gateway is internet-facing but connected to VNet for outbound. Internal: gateway is only accessible within the VNet."
+      }
+    },
     "publicNetworkAccess": {
       "type": "string",
       "defaultValue": "Disabled",
@@ -153,7 +171,11 @@
       "properties": {
         "publisherEmail": "[parameters('publisherEmail')]",
         "publisherName": "[parameters('publisherName')]",
-        "publicNetworkAccess": "Enabled"
+        "publicNetworkAccess": "Enabled",
+        "virtualNetworkType": "[parameters('virtualNetworkType')]",
+        "virtualNetworkConfiguration": {
+          "subnetResourceId": "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('vnetResourceGroupName')), 'Microsoft.Network/virtualNetworks/subnets', parameters('vnetName'), parameters('apimSubnetName'))]"
+        }
       }
     },
     {
@@ -230,6 +252,12 @@
           },
           "publicNetworkAccess": {
             "value": "Disabled"
+          },
+          "virtualNetworkType": {
+            "value": "[parameters('virtualNetworkType')]"
+          },
+          "apimSubnetId": {
+            "value": "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('vnetResourceGroupName')), 'Microsoft.Network/virtualNetworks/subnets', parameters('vnetName'), parameters('apimSubnetName'))]"
           }
         },
         "template": {
@@ -239,7 +267,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.41.2.15936",
-              "templateHash": "7169228011873989093"
+              "templateHash": "12639432982091135713"
             }
           },
           "parameters": {
@@ -293,6 +321,22 @@
               "metadata": {
                 "description": "Whether to disable public network access to the APIM gateway."
               }
+            },
+            "virtualNetworkType": {
+              "type": "string",
+              "allowedValues": [
+                "External",
+                "Internal"
+              ],
+              "metadata": {
+                "description": "VNet integration mode for APIM."
+              }
+            },
+            "apimSubnetId": {
+              "type": "string",
+              "metadata": {
+                "description": "Resource ID of the APIM integration subnet."
+              }
             }
           },
           "resources": [
@@ -311,7 +355,11 @@
               "properties": {
                 "publisherEmail": "[parameters('publisherEmail')]",
                 "publisherName": "[parameters('publisherName')]",
-                "publicNetworkAccess": "[parameters('publicNetworkAccess')]"
+                "publicNetworkAccess": "[parameters('publicNetworkAccess')]",
+                "virtualNetworkType": "[parameters('virtualNetworkType')]",
+                "virtualNetworkConfiguration": {
+                  "subnetResourceId": "[parameters('apimSubnetId')]"
+                }
               }
             }
           ]
