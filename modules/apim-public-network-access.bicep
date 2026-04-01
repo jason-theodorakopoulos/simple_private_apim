@@ -24,10 +24,6 @@ param publisherEmail string
 param publisherName string
 
 @description('SKU tier for the API Management instance.')
-@allowed([
-  'StandardV2'
-  'Developer'
-])
 param skuName string
 
 @description('SKU capacity (scale units) for the APIM instance.')
@@ -41,14 +37,7 @@ param skuCapacity int
 ])
 param publicNetworkAccess string
 
-@description('VNet integration mode for APIM.')
-@allowed([
-  'External'
-  'Internal'
-])
-param virtualNetworkType string
-
-@description('Resource ID of the APIM integration subnet.')
+@description('Resource ID of the APIM VNet integration subnet.')
 param apimSubnetId string
 
 resource apimService 'Microsoft.ApiManagement/service@2024-05-01' = {
@@ -65,7 +54,7 @@ resource apimService 'Microsoft.ApiManagement/service@2024-05-01' = {
     publisherEmail: publisherEmail
     publisherName: publisherName
     publicNetworkAccess: publicNetworkAccess
-    virtualNetworkType: virtualNetworkType
+    virtualNetworkType: 'External'
     virtualNetworkConfiguration: {
       subnetResourceId: apimSubnetId
     }

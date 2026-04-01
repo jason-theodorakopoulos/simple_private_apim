@@ -25,11 +25,7 @@ param peSubnetName = 'snet-privateendpoints'
 
 param apimSubnetName = 'apim-subnet'
 
-param virtualNetworkType = 'External'
-
 param publicNetworkAccess = 'Disabled'
-
-param privateDnsZoneSubscriptionId = '<connectivity-subscription-id>'
 
 param privateDnsZoneResourceGroupName = 'rg-connectivity-dns'
 
