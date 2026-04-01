@@ -42,7 +42,7 @@ This accelerator deploys an **Azure API Management (APIM)** instance (**Standard
 | Prerequisite | Details |
 |---|---|
 | **Virtual Network** | An existing VNet with a subnet for private endpoints and a dedicated subnet for APIM VNet integration (`apim-subnet`). |
-| **APIM Subnet** | The `apim-subnet` must be dedicated to APIM. For Developer tier it requires an NSG and service endpoint configuration; for StandardV2 it requires subnet delegation to `Microsoft.Web/serverFarms`. |
+| **APIM Subnet** | The `apim-subnet` must be dedicated to APIM. For Developer tier it requires an NSG and service endpoint configuration; for StandardV2 it requires subnet delegation to `Microsoft.ApiManagement/service`. |
 | **Private DNS Zone** | `privatelink.azure-api.net` must already exist (typically in a central connectivity subscription/resource group). The template creates the DNS Zone Group and A record automatically. |
 | **VNet ↔ DNS Link** | The VNet (or its DNS resolver) must be linked to the private DNS zone so that clients can resolve the APIM private endpoint address. |
 | **Permissions** | Contributor on the APIM resource group; Reader on the VNet resource group; Network Contributor (or Private DNS Zone Contributor) on the DNS zone resource group. |
@@ -61,7 +61,7 @@ This accelerator deploys an **Azure API Management (APIM)** instance (**Standard
 | `vnetResourceGroupName` | No | current RG | Resource group that contains the VNet. |
 | `peSubnetName` | No | `pe-subnet` | Subnet name for the private endpoint. |
 | `apimSubnetName` | No | `apim-subnet` | Subnet name for APIM VNet integration (outbound connectivity to Azure AI Foundry). |
-| `virtualNetworkType` | No | `External` | VNet integration mode: `External` (internet-facing gateway + VNet outbound) or `Internal` (VNet-only gateway). |
+| `virtualNetworkType` | No | `External` | VNet integration mode: `External` (gateway endpoints are internet-accessible, backend connectivity uses VNet) or `Internal` (all endpoints are only accessible from within the VNet or connected networks). |
 | `publicNetworkAccess` | No | `Disabled` | Set to `Enabled` for hybrid (public + private) access. |
 | `privateDnsZoneSubscriptionId` | No | current sub | Subscription ID where the existing private DNS zone resides. |
 | `privateDnsZoneResourceGroupName` | No | current RG | Resource group that contains the existing private DNS zone. |
