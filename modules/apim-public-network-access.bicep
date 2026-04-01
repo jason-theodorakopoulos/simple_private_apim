@@ -5,9 +5,10 @@
 // access during the initial service creation.
 //
 // NOTE: ARM/Bicep only supports PUT (full resource deployment), not PATCH.
-// All required properties are passed through from the parent template to
-// ensure an idempotent update. If APIM properties are modified outside of
-// this template between deployments, those changes may be overwritten.
+// All required properties — including VNet integration configuration — are
+// passed through from the parent template to ensure an idempotent update.
+// If APIM properties are modified outside of this template between
+// deployments, those changes may be overwritten.
 // ============================================================================
 
 @description('Name of the existing API Management service instance.')
@@ -40,6 +41,16 @@ param skuCapacity int
 ])
 param publicNetworkAccess string
 
+@description('VNet integration mode for APIM.')
+@allowed([
+  'External'
+  'Internal'
+])
+param virtualNetworkType string
+
+@description('Resource ID of the APIM integration subnet.')
+param apimSubnetId string
+
 resource apimService 'Microsoft.ApiManagement/service@2024-05-01' = {
   name: apimName
   location: location
@@ -54,5 +65,9 @@ resource apimService 'Microsoft.ApiManagement/service@2024-05-01' = {
     publisherEmail: publisherEmail
     publisherName: publisherName
     publicNetworkAccess: publicNetworkAccess
+    virtualNetworkType: virtualNetworkType
+    virtualNetworkConfiguration: {
+      subnetResourceId: apimSubnetId
+    }
   }
 }
