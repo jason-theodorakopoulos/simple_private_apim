@@ -1,25 +1,35 @@
 // ============================================================================
-// Azure API Management - Private AI Gateway Accelerator (StandardV2)
-// Deploys APIM StandardV2 as an AI gateway for Azure AI Foundry LLMs.
+// Azure API Management - Private AI Gateway Accelerator
+// Deploys APIM as an AI gateway for Azure AI Foundry LLMs.
+// Supports both StandardV2 and Developer SKUs with conditional networking.
 //
-// Networking model (StandardV2 "VNet integration", NOT classic VNet injection):
+// === StandardV2 Networking (VNet integration) ===
 //   - Outbound:  VNet integration via a dedicated subnet delegated to
-//                Microsoft.Web/serverFarms. This lets APIM reach private
-//                backends (e.g. Azure AI Foundry endpoints) through the VNet.
+//                Microsoft.Web/serverFarms. APIM reaches private backends
+//                (e.g. Azure AI Foundry endpoints) through the VNet.
 //   - Inbound:   Private endpoint (Gateway sub-resource) so clients connect
-//                over Private Link. Public access is disabled after the PE
-//                is provisioned.
+//                over Private Link. Public access is disabled post-creation.
+//   - Subnet:    Delegated to Microsoft.Web/serverFarms
+//                NSG: outbound 443 to Storage + AzureKeyVault
+//                /27 minimum, /24 recommended. Dedicated.
+//   - Public IP: Not required.
 //
-// Prerequisites for the APIM integration subnet ('apim-subnet'):
-//   1. Delegated to Microsoft.Web/serverFarms
-//   2. NSG attached with outbound rules for Storage (443) and
-//      AzureKeyVault (443) at minimum
-//   3. /27 minimum, /24 recommended
-//   4. Dedicated – cannot be shared with other Azure resources
+// === Developer Networking (classic VNet injection — Internal mode) ===
+//   - Full VNet injection: APIM is deployed inside the subnet with
+//     Internal mode — gateway only accessible within the VNet.
+//   - Outbound:  Traffic to backends flows through the VNet natively.
+//   - Inbound:   Gateway accessible only within the VNet (private VIP).
+//                Cross-VNet access via VNet peering.
+//                PE is NOT supported with VNet-injected services.
+//   - Subnet:    NO delegation (stv2 uses VMSS which conflicts with delegations)
+//                NSG: inbound 3443 (ApiManagement tag), 443, 80;
+//                     outbound 443 to Storage, SQL, AzureKeyVault, AzureAD.
+//                /27 minimum, /29 usable. Dedicated.
+//   - Public IP: Required (Standard SKU, Static, IPv4) for stv2 platform
+//                management plane. Created automatically by this template.
 //
-// Prerequisites for the PE subnet ('pe-subnet'):
-//   1. privateEndpointNetworkPolicies = Disabled (or
-//      NetworkSecurityGroupEnabled depending on policy)
+// Prerequisites for the PE subnet ('pe-subnet') — StandardV2 only:
+//   1. privateEndpointNetworkPolicies = Disabled
 //   2. No delegation required
 //
 // Creates a DNS Zone Group referencing an existing private DNS zone (which
@@ -33,32 +43,7 @@ targetScope = 'resourceGroup'
 // Parameters
 // ============================================================================
 
-@description('Location for all resources.')
-@allowed([
-  'australiaeast'
-  'brazilsouth'
-  'canadaeast'
-  'eastus'
-  'eastus2'
-  'francecentral'
-  'germanywestcentral'
-  'italynorth'
-  'japaneast'
-  'koreacentral'
-  'norwayeast'
-  'polandcentral'
-  'southafricanorth'
-  'southcentralus'
-  'southindia'
-  'spaincentral'
-  'swedencentral'
-  'switzerlandnorth'
-  'uaenorth'
-  'uksouth'
-  'westeurope'
-  'westus'
-  'westus3'
-])
+@description('Location for all resources. StandardV2 and Developer tiers have different region availability — see Azure docs for the latest supported regions.')
 param location string = 'eastus'
 
 @description('Name for the API Management service instance. Must be globally unique.')
@@ -72,10 +57,14 @@ param publisherEmail string
 @description('Publisher organization name for the APIM instance.')
 param publisherName string
 
-@description('SKU tier for the API Management instance. StandardV2 supports VNet integration (outbound) and private endpoints (inbound).')
+@description('SKU tier for the API Management instance. StandardV2 uses VNet integration; Developer uses classic VNet injection.')
+@allowed([
+  'StandardV2'
+  'Developer'
+])
 param skuName string = 'StandardV2'
 
-@description('SKU capacity (scale units) for the APIM instance.')
+@description('SKU capacity (scale units). Developer tier is limited to 1.')
 @minValue(1)
 param skuCapacity int = 1
 
@@ -88,7 +77,7 @@ param vnetResourceGroupName string = resourceGroup().name
 @description('Name of the existing subnet for private endpoints.')
 param peSubnetName string = 'pe-subnet'
 
-@description('Name of the existing subnet for APIM VNet integration (outbound connectivity to backends such as Azure AI Foundry). Must be delegated to Microsoft.Web/serverFarms.')
+@description('Name of the existing subnet for APIM networking. For StandardV2: delegated to Microsoft.Web/serverFarms. For Developer: NO delegation (stv2 VMSS conflicts with delegations).')
 param apimSubnetName string = 'apim-subnet'
 
 @description('Whether to disable public network access to the APIM gateway after the private endpoint is created.')
@@ -113,6 +102,10 @@ param privateDnsZoneName string = 'privatelink.azure-api.net'
 
 var privateEndpointName = '${apimName}-pe'
 var privateLinkServiceConnectionName = '${apimName}-plsc'
+var publicIpName = '${apimName}-pip'
+var isDeveloper = skuName == 'Developer'
+// Developer tier is hard-limited to capacity 1
+var effectiveCapacity = isDeveloper ? 1 : skuCapacity
 
 // ============================================================================
 // Existing Resources
@@ -143,21 +136,47 @@ resource existingPrivateDnsZone 'Microsoft.Network/privateDnsZones@2020-06-01' e
 }
 
 // ============================================================================
-// API Management Service (StandardV2 with VNet integration)
+// Public IP Address (Developer tier only)
 // ============================================================================
 
-// StandardV2 uses "VNet integration" (outbound only) — NOT classic VNet
-// injection. The gateway remains publicly accessible; outbound traffic to
-// backends flows through the integrated subnet.
+// Developer SKU with classic VNet injection (stv2) requires a public IP for
+// the management plane. StandardV2 does not need one.
+resource publicIp 'Microsoft.Network/publicIPAddresses@2024-01-01' = if (isDeveloper) {
+  name: publicIpName
+  location: location
+  sku: {
+    name: 'Standard'
+  }
+  properties: {
+    publicIPAllocationMethod: 'Static'
+    publicIPAddressVersion: 'IPv4'
+    dnsSettings: {
+      domainNameLabel: apimName
+    }
+  }
+}
+
+// ============================================================================
+// API Management Service
+// ============================================================================
+
+// StandardV2: VNet integration (outbound only) — gateway on public infra,
+//             outbound traffic to backends flows through the integrated subnet.
+//             Uses External mode + PE for private inbound access.
+// Developer:  Classic VNet injection — APIM fully placed in the subnet.
+//             Uses Internal mode — gateway accessible only within VNet.
+//             PE is NOT supported with VNet-injected services.
+//
 // publicNetworkAccess starts as 'Enabled' because Azure does not allow
 // disabling it during initial creation — it is toggled off in a follow-up
-// module deployment after the private endpoint exists.
+// module deployment after the private endpoint exists (StandardV2 only).
+
 resource apimService 'Microsoft.ApiManagement/service@2024-05-01' = {
   name: apimName
   location: location
   sku: {
     name: skuName
-    capacity: skuCapacity
+    capacity: effectiveCapacity
   }
   identity: {
     type: 'SystemAssigned'
@@ -166,7 +185,8 @@ resource apimService 'Microsoft.ApiManagement/service@2024-05-01' = {
     publisherEmail: publisherEmail
     publisherName: publisherName
     publicNetworkAccess: 'Enabled'
-    virtualNetworkType: 'External'
+    publicIpAddressId: isDeveloper ? publicIp.id : null
+    virtualNetworkType: isDeveloper ? 'Internal' : 'External'
     virtualNetworkConfiguration: {
       subnetResourceId: existingApimSubnet.id
     }
@@ -174,10 +194,12 @@ resource apimService 'Microsoft.ApiManagement/service@2024-05-01' = {
 }
 
 // ============================================================================
-// Private Endpoint for APIM
+// Private Endpoint for APIM (StandardV2 only)
 // ============================================================================
 
-resource apimPrivateEndpoint 'Microsoft.Network/privateEndpoints@2024-01-01' = {
+// Developer tier uses Internal VNet injection — PE is NOT supported.
+// StandardV2 uses PE for private inbound access to the gateway.
+resource apimPrivateEndpoint 'Microsoft.Network/privateEndpoints@2024-01-01' = if (!isDeveloper) {
   name: privateEndpointName
   location: location
   properties: {
@@ -206,7 +228,7 @@ resource apimPrivateEndpoint 'Microsoft.Network/privateEndpoints@2024-01-01' = {
 // the APIM gateway is automatically registered in the existing private DNS
 // zone. The DNS zone may live in a different subscription and resource group
 // (common in CAF hub-spoke topologies).
-resource dnsZoneGroup 'Microsoft.Network/privateEndpoints/privateDnsZoneGroups@2024-01-01' = {
+resource dnsZoneGroup 'Microsoft.Network/privateEndpoints/privateDnsZoneGroups@2024-01-01' = if (!isDeveloper) {
   name: 'default'
   parent: apimPrivateEndpoint
   properties: {
@@ -226,9 +248,11 @@ resource dnsZoneGroup 'Microsoft.Network/privateEndpoints/privateDnsZoneGroups@2
 // ============================================================================
 
 // Azure requires APIM to be created with public access enabled. This module
-// updates the service to disable public access once the private endpoint is
-// in place. The module is skipped when publicNetworkAccess is 'Enabled'.
-module disablePublicAccess 'modules/apim-public-network-access.bicep' = if (publicNetworkAccess == 'Disabled') {
+// updates the service to disable public access after provisioning.
+// Only applies to StandardV2 — Developer cannot disable publicNetworkAccess
+// because it requires at least one PE, and PEs are not supported with VNet
+// injection. Developer Internal mode already makes the gateway VNet-only.
+module disablePublicAccess 'modules/apim-public-network-access.bicep' = if (publicNetworkAccess == 'Disabled' && !isDeveloper) {
   name: 'disable-public-network-access'
   params: {
     apimName: apimName
@@ -236,7 +260,7 @@ module disablePublicAccess 'modules/apim-public-network-access.bicep' = if (publ
     publisherEmail: publisherEmail
     publisherName: publisherName
     skuName: skuName
-    skuCapacity: skuCapacity
+    skuCapacity: effectiveCapacity
     publicNetworkAccess: 'Disabled'
     apimSubnetId: existingApimSubnet.id
   }
@@ -258,8 +282,8 @@ output apimServiceName string = apimService.name
 @description('Gateway URL of the APIM service.')
 output apimGatewayUrl string = apimService.properties.gatewayUrl
 
-@description('Resource ID of the private endpoint.')
-output privateEndpointId string = apimPrivateEndpoint.id
+@description('Resource ID of the private endpoint (empty for Developer tier).')
+output privateEndpointId string = isDeveloper ? '' : apimPrivateEndpoint.id
 
 @description('Principal ID of the APIM system-assigned managed identity.')
 output apimPrincipalId string = apimService.identity.principalId
