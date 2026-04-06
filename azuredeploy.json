@@ -5,40 +5,15 @@
     "_generator": {
       "name": "bicep",
       "version": "0.35.1.17967",
-      "templateHash": "8011033193546901151"
+      "templateHash": "3783867045214051889"
     }
   },
   "parameters": {
     "location": {
       "type": "string",
       "defaultValue": "eastus",
-      "allowedValues": [
-        "australiaeast",
-        "brazilsouth",
-        "canadaeast",
-        "eastus",
-        "eastus2",
-        "francecentral",
-        "germanywestcentral",
-        "italynorth",
-        "japaneast",
-        "koreacentral",
-        "norwayeast",
-        "polandcentral",
-        "southafricanorth",
-        "southcentralus",
-        "southindia",
-        "spaincentral",
-        "swedencentral",
-        "switzerlandnorth",
-        "uaenorth",
-        "uksouth",
-        "westeurope",
-        "westus",
-        "westus3"
-      ],
       "metadata": {
-        "description": "Location for all resources."
+        "description": "Location for all resources. StandardV2 and Developer tiers have different region availability — see Azure docs for the latest supported regions."
       }
     },
     "apimName": {
@@ -64,8 +39,12 @@
     "skuName": {
       "type": "string",
       "defaultValue": "StandardV2",
+      "allowedValues": [
+        "StandardV2",
+        "Developer"
+      ],
       "metadata": {
-        "description": "SKU tier for the API Management instance. StandardV2 supports VNet integration (outbound) and private endpoints (inbound)."
+        "description": "SKU tier for the API Management instance. StandardV2 uses VNet integration; Developer uses classic VNet injection."
       }
     },
     "skuCapacity": {
@@ -73,7 +52,7 @@
       "defaultValue": 1,
       "minValue": 1,
       "metadata": {
-        "description": "SKU capacity (scale units) for the APIM instance."
+        "description": "SKU capacity (scale units). Developer tier is limited to 1."
       }
     },
     "vnetName": {
@@ -100,7 +79,7 @@
       "type": "string",
       "defaultValue": "apim-subnet",
       "metadata": {
-        "description": "Name of the existing subnet for APIM VNet integration (outbound connectivity to backends such as Azure AI Foundry). Must be delegated to Microsoft.Web/serverFarms."
+        "description": "Name of the existing subnet for APIM networking. For StandardV2: delegated to Microsoft.Web/serverFarms. For Developer: NO delegation (stv2 VMSS conflicts with delegations)."
       }
     },
     "publicNetworkAccess": {
@@ -138,9 +117,29 @@
   },
   "variables": {
     "privateEndpointName": "[format('{0}-pe', parameters('apimName'))]",
-    "privateLinkServiceConnectionName": "[format('{0}-plsc', parameters('apimName'))]"
+    "privateLinkServiceConnectionName": "[format('{0}-plsc', parameters('apimName'))]",
+    "publicIpName": "[format('{0}-pip', parameters('apimName'))]",
+    "isDeveloper": "[equals(parameters('skuName'), 'Developer')]",
+    "effectiveCapacity": "[if(variables('isDeveloper'), 1, parameters('skuCapacity'))]"
   },
   "resources": [
+    {
+      "condition": "[variables('isDeveloper')]",
+      "type": "Microsoft.Network/publicIPAddresses",
+      "apiVersion": "2024-01-01",
+      "name": "[variables('publicIpName')]",
+      "location": "[parameters('location')]",
+      "sku": {
+        "name": "Standard"
+      },
+      "properties": {
+        "publicIPAllocationMethod": "Static",
+        "publicIPAddressVersion": "IPv4",
+        "dnsSettings": {
+          "domainNameLabel": "[parameters('apimName')]"
+        }
+      }
+    },
     {
       "type": "Microsoft.ApiManagement/service",
       "apiVersion": "2024-05-01",
@@ -148,7 +147,7 @@
       "location": "[parameters('location')]",
       "sku": {
         "name": "[parameters('skuName')]",
-        "capacity": "[parameters('skuCapacity')]"
+        "capacity": "[variables('effectiveCapacity')]"
       },
       "identity": {
         "type": "SystemAssigned"
@@ -157,13 +156,18 @@
         "publisherEmail": "[parameters('publisherEmail')]",
         "publisherName": "[parameters('publisherName')]",
         "publicNetworkAccess": "Enabled",
-        "virtualNetworkType": "External",
+        "publicIpAddressId": "[if(variables('isDeveloper'), resourceId('Microsoft.Network/publicIPAddresses', variables('publicIpName')), null())]",
+        "virtualNetworkType": "[if(variables('isDeveloper'), 'Internal', 'External')]",
         "virtualNetworkConfiguration": {
           "subnetResourceId": "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('vnetResourceGroupName')), 'Microsoft.Network/virtualNetworks/subnets', parameters('vnetName'), parameters('apimSubnetName'))]"
         }
-      }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Network/publicIPAddresses', variables('publicIpName'))]"
+      ]
     },
     {
+      "condition": "[not(variables('isDeveloper'))]",
       "type": "Microsoft.Network/privateEndpoints",
       "apiVersion": "2024-01-01",
       "name": "[variables('privateEndpointName')]",
@@ -189,6 +193,7 @@
       ]
     },
     {
+      "condition": "[not(variables('isDeveloper'))]",
       "type": "Microsoft.Network/privateEndpoints/privateDnsZoneGroups",
       "apiVersion": "2024-01-01",
       "name": "[format('{0}/{1}', variables('privateEndpointName'), 'default')]",
@@ -207,7 +212,7 @@
       ]
     },
     {
-      "condition": "[equals(parameters('publicNetworkAccess'), 'Disabled')]",
+      "condition": "[and(equals(parameters('publicNetworkAccess'), 'Disabled'), not(variables('isDeveloper')))]",
       "type": "Microsoft.Resources/deployments",
       "apiVersion": "2022-09-01",
       "name": "disable-public-network-access",
@@ -233,7 +238,7 @@
             "value": "[parameters('skuName')]"
           },
           "skuCapacity": {
-            "value": "[parameters('skuCapacity')]"
+            "value": "[variables('effectiveCapacity')]"
           },
           "publicNetworkAccess": {
             "value": "Disabled"
@@ -249,7 +254,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.35.1.17967",
-              "templateHash": "13124281497726945786"
+              "templateHash": "15896774651832367888"
             }
           },
           "parameters": {
@@ -305,6 +310,24 @@
               "metadata": {
                 "description": "Resource ID of the APIM VNet integration subnet."
               }
+            },
+            "publicIpAddressId": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "Resource ID of the public IP address for Developer SKU VNet injection. Leave empty for StandardV2."
+              }
+            },
+            "virtualNetworkType": {
+              "type": "string",
+              "defaultValue": "External",
+              "allowedValues": [
+                "External",
+                "Internal"
+              ],
+              "metadata": {
+                "description": "VNet type: External for StandardV2, Internal for Developer."
+              }
             }
           },
           "resources": [
@@ -324,7 +347,8 @@
                 "publisherEmail": "[parameters('publisherEmail')]",
                 "publisherName": "[parameters('publisherName')]",
                 "publicNetworkAccess": "[parameters('publicNetworkAccess')]",
-                "virtualNetworkType": "External",
+                "publicIpAddressId": "[if(not(empty(parameters('publicIpAddressId'))), parameters('publicIpAddressId'), null())]",
+                "virtualNetworkType": "[parameters('virtualNetworkType')]",
                 "virtualNetworkConfiguration": {
                   "subnetResourceId": "[parameters('apimSubnetId')]"
                 }
@@ -363,9 +387,9 @@
     "privateEndpointId": {
       "type": "string",
       "metadata": {
-        "description": "Resource ID of the private endpoint."
+        "description": "Resource ID of the private endpoint (empty for Developer tier)."
       },
-      "value": "[resourceId('Microsoft.Network/privateEndpoints', variables('privateEndpointName'))]"
+      "value": "[if(variables('isDeveloper'), '', resourceId('Microsoft.Network/privateEndpoints', variables('privateEndpointName')))]"
     },
     "apimPrincipalId": {
       "type": "string",

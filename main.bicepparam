@@ -3,11 +3,12 @@
 // Update the values below to match your environment before deploying.
 //
 // SKU notes:
-//   StandardV2 — VNet integration (outbound), PE (inbound).
+//   StandardV2 — VNet integration (outbound) + PE (inbound).
 //                Subnet delegated to Microsoft.Web/serverFarms.
-//   Developer  — Classic VNet injection (full placement in subnet).
-//                Subnet delegated to Microsoft.ApiManagement/service.
-//                Capacity is always 1. Public IP created automatically.
+//   Developer  — Internal VNet injection (gateway VNet-only, no PE).
+//                Subnet: NO delegation (stv2 VMSS conflicts).
+//                Capacity is always 1. Public IP created automatically
+//                (management plane only — gateway is VNet-only).
 // ============================================================================
 
 using './main.bicep'
