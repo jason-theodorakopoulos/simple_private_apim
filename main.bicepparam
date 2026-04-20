@@ -41,3 +41,13 @@ param publicNetworkAccess = 'Disabled'
 param privateDnsZoneResourceGroupName = 'apimrg'
 
 param privateDnsZoneName = 'privatelink.azure-api.net'
+
+// --- Azure AI Foundry ---
+
+param aiFoundryName = 'ai-myorg-001'
+
+param aiProjectName = 'ai-myorg-001-proj'
+
+param foundryPrivateDnsZoneResourceGroupName = 'apimrg'
+
+param foundryPrivateDnsZoneName = 'privatelink.cognitiveservices.azure.com'

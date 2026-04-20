@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.35.1.17967",
-      "templateHash": "3783867045214051889"
+      "templateHash": "16306113640369095468"
     }
   },
   "parameters": {
@@ -113,6 +113,42 @@
       "metadata": {
         "description": "Name of the existing private DNS zone for APIM (e.g. privatelink.azure-api.net)."
       }
+    },
+    "aiFoundryName": {
+      "type": "string",
+      "minLength": 2,
+      "maxLength": 64,
+      "metadata": {
+        "description": "Name for the Azure AI Foundry account (CognitiveServices/accounts, kind: AIServices). Must be globally unique — also used as the custom subdomain."
+      }
+    },
+    "aiProjectName": {
+      "type": "string",
+      "defaultValue": "[format('{0}-proj', parameters('aiFoundryName'))]",
+      "metadata": {
+        "description": "Name for the Azure AI Foundry project (child of the Foundry account)."
+      }
+    },
+    "foundryPrivateDnsZoneSubscriptionId": {
+      "type": "string",
+      "defaultValue": "[subscription().subscriptionId]",
+      "metadata": {
+        "description": "Subscription ID where the existing Foundry private DNS zone resides. Defaults to the current subscription."
+      }
+    },
+    "foundryPrivateDnsZoneResourceGroupName": {
+      "type": "string",
+      "defaultValue": "[resourceGroup().name]",
+      "metadata": {
+        "description": "Resource group name where the existing Foundry private DNS zone resides. Defaults to the current resource group."
+      }
+    },
+    "foundryPrivateDnsZoneName": {
+      "type": "string",
+      "defaultValue": "privatelink.cognitiveservices.azure.com",
+      "metadata": {
+        "description": "Name of the existing private DNS zone for Cognitive Services (e.g. privatelink.cognitiveservices.azure.com)."
+      }
     }
   },
   "variables": {
@@ -120,7 +156,10 @@
     "privateLinkServiceConnectionName": "[format('{0}-plsc', parameters('apimName'))]",
     "publicIpName": "[format('{0}-pip', parameters('apimName'))]",
     "isDeveloper": "[equals(parameters('skuName'), 'Developer')]",
-    "effectiveCapacity": "[if(variables('isDeveloper'), 1, parameters('skuCapacity'))]"
+    "effectiveCapacity": "[if(variables('isDeveloper'), 1, parameters('skuCapacity'))]",
+    "foundryPrivateEndpointName": "[format('{0}-pe', parameters('aiFoundryName'))]",
+    "foundryPrivateLinkServiceConnectionName": "[format('{0}-plsc', parameters('aiFoundryName'))]",
+    "cognitiveServicesOpenAIUserRoleId": "5e0bd9bd-7b93-4f28-af87-19fc36ad61bd"
   },
   "resources": [
     {
@@ -209,6 +248,96 @@
       },
       "dependsOn": [
         "[resourceId('Microsoft.Network/privateEndpoints', variables('privateEndpointName'))]"
+      ]
+    },
+    {
+      "type": "Microsoft.CognitiveServices/accounts",
+      "apiVersion": "2025-06-01",
+      "name": "[parameters('aiFoundryName')]",
+      "location": "[parameters('location')]",
+      "identity": {
+        "type": "SystemAssigned"
+      },
+      "sku": {
+        "name": "S0"
+      },
+      "kind": "AIServices",
+      "properties": {
+        "allowProjectManagement": true,
+        "customSubDomainName": "[parameters('aiFoundryName')]",
+        "publicNetworkAccess": "Disabled",
+        "disableLocalAuth": false
+      }
+    },
+    {
+      "type": "Microsoft.CognitiveServices/accounts/projects",
+      "apiVersion": "2025-06-01",
+      "name": "[format('{0}/{1}', parameters('aiFoundryName'), parameters('aiProjectName'))]",
+      "location": "[parameters('location')]",
+      "identity": {
+        "type": "SystemAssigned"
+      },
+      "properties": {},
+      "dependsOn": [
+        "[resourceId('Microsoft.CognitiveServices/accounts', parameters('aiFoundryName'))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Network/privateEndpoints",
+      "apiVersion": "2024-01-01",
+      "name": "[variables('foundryPrivateEndpointName')]",
+      "location": "[parameters('location')]",
+      "properties": {
+        "subnet": {
+          "id": "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('vnetResourceGroupName')), 'Microsoft.Network/virtualNetworks/subnets', parameters('vnetName'), parameters('peSubnetName'))]"
+        },
+        "privateLinkServiceConnections": [
+          {
+            "name": "[variables('foundryPrivateLinkServiceConnectionName')]",
+            "properties": {
+              "privateLinkServiceId": "[resourceId('Microsoft.CognitiveServices/accounts', parameters('aiFoundryName'))]",
+              "groupIds": [
+                "account"
+              ]
+            }
+          }
+        ]
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.CognitiveServices/accounts', parameters('aiFoundryName'))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Network/privateEndpoints/privateDnsZoneGroups",
+      "apiVersion": "2024-01-01",
+      "name": "[format('{0}/{1}', variables('foundryPrivateEndpointName'), 'default')]",
+      "properties": {
+        "privateDnsZoneConfigs": [
+          {
+            "name": "privatelink-cognitiveservices-azure-com",
+            "properties": {
+              "privateDnsZoneId": "[extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', parameters('foundryPrivateDnsZoneSubscriptionId'), parameters('foundryPrivateDnsZoneResourceGroupName')), 'Microsoft.Network/privateDnsZones', parameters('foundryPrivateDnsZoneName'))]"
+            }
+          }
+        ]
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Network/privateEndpoints', variables('foundryPrivateEndpointName'))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Authorization/roleAssignments",
+      "apiVersion": "2022-04-01",
+      "scope": "[format('Microsoft.CognitiveServices/accounts/{0}', parameters('aiFoundryName'))]",
+      "name": "[guid(resourceId('Microsoft.CognitiveServices/accounts', parameters('aiFoundryName')), resourceId('Microsoft.ApiManagement/service', parameters('apimName')), variables('cognitiveServicesOpenAIUserRoleId'))]",
+      "properties": {
+        "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', variables('cognitiveServicesOpenAIUserRoleId'))]",
+        "principalId": "[reference(resourceId('Microsoft.ApiManagement/service', parameters('apimName')), '2024-05-01', 'full').identity.principalId]",
+        "principalType": "ServicePrincipal"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.CognitiveServices/accounts', parameters('aiFoundryName'))]",
+        "[resourceId('Microsoft.ApiManagement/service', parameters('apimName'))]"
       ]
     },
     {
@@ -397,6 +526,48 @@
         "description": "Principal ID of the APIM system-assigned managed identity."
       },
       "value": "[reference(resourceId('Microsoft.ApiManagement/service', parameters('apimName')), '2024-05-01', 'full').identity.principalId]"
+    },
+    "aiFoundryAccountId": {
+      "type": "string",
+      "metadata": {
+        "description": "Resource ID of the Azure AI Foundry account."
+      },
+      "value": "[resourceId('Microsoft.CognitiveServices/accounts', parameters('aiFoundryName'))]"
+    },
+    "aiFoundryAccountName": {
+      "type": "string",
+      "metadata": {
+        "description": "Name of the Azure AI Foundry account."
+      },
+      "value": "[parameters('aiFoundryName')]"
+    },
+    "aiFoundryEndpoint": {
+      "type": "string",
+      "metadata": {
+        "description": "Endpoint URL of the Azure AI Foundry account."
+      },
+      "value": "[reference(resourceId('Microsoft.CognitiveServices/accounts', parameters('aiFoundryName')), '2025-06-01').endpoint]"
+    },
+    "aiProjectName": {
+      "type": "string",
+      "metadata": {
+        "description": "Name of the Azure AI Foundry project."
+      },
+      "value": "[parameters('aiProjectName')]"
+    },
+    "aiProjectId": {
+      "type": "string",
+      "metadata": {
+        "description": "Resource ID of the Azure AI Foundry project."
+      },
+      "value": "[resourceId('Microsoft.CognitiveServices/accounts/projects', parameters('aiFoundryName'), parameters('aiProjectName'))]"
+    },
+    "foundryPrivateEndpointId": {
+      "type": "string",
+      "metadata": {
+        "description": "Resource ID of the Foundry private endpoint."
+      },
+      "value": "[resourceId('Microsoft.Network/privateEndpoints', variables('foundryPrivateEndpointName'))]"
     }
   }
 }

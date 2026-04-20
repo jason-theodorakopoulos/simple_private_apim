@@ -96,6 +96,25 @@ param privateDnsZoneResourceGroupName string = resourceGroup().name
 @description('Name of the existing private DNS zone for APIM (e.g. privatelink.azure-api.net).')
 param privateDnsZoneName string = 'privatelink.azure-api.net'
 
+// --- Azure AI Foundry parameters ---
+
+@description('Name for the Azure AI Foundry account (CognitiveServices/accounts, kind: AIServices). Must be globally unique — also used as the custom subdomain.')
+@minLength(2)
+@maxLength(64)
+param aiFoundryName string
+
+@description('Name for the Azure AI Foundry project (child of the Foundry account).')
+param aiProjectName string = '${aiFoundryName}-proj'
+
+@description('Subscription ID where the existing Foundry private DNS zone resides. Defaults to the current subscription.')
+param foundryPrivateDnsZoneSubscriptionId string = subscription().subscriptionId
+
+@description('Resource group name where the existing Foundry private DNS zone resides. Defaults to the current resource group.')
+param foundryPrivateDnsZoneResourceGroupName string = resourceGroup().name
+
+@description('Name of the existing private DNS zone for Cognitive Services (e.g. privatelink.cognitiveservices.azure.com).')
+param foundryPrivateDnsZoneName string = 'privatelink.cognitiveservices.azure.com'
+
 // ============================================================================
 // Variables
 // ============================================================================
@@ -106,6 +125,12 @@ var publicIpName = '${apimName}-pip'
 var isDeveloper = skuName == 'Developer'
 // Developer tier is hard-limited to capacity 1
 var effectiveCapacity = isDeveloper ? 1 : skuCapacity
+
+// --- Azure AI Foundry variables ---
+var foundryPrivateEndpointName = '${aiFoundryName}-pe'
+var foundryPrivateLinkServiceConnectionName = '${aiFoundryName}-plsc'
+// Cognitive Services OpenAI User — lets APIM call the Foundry inference endpoint
+var cognitiveServicesOpenAIUserRoleId = '5e0bd9bd-7b93-4f28-af87-19fc36ad61bd'
 
 // ============================================================================
 // Existing Resources
@@ -133,6 +158,12 @@ resource existingApimSubnet 'Microsoft.Network/virtualNetworks/subnets@2024-01-0
 resource existingPrivateDnsZone 'Microsoft.Network/privateDnsZones@2020-06-01' existing = {
   name: privateDnsZoneName
   scope: resourceGroup(privateDnsZoneSubscriptionId, privateDnsZoneResourceGroupName)
+}
+
+// Reference the existing Foundry private DNS zone (may be in a different subscription and resource group)
+resource existingFoundryPrivateDnsZone 'Microsoft.Network/privateDnsZones@2020-06-01' existing = {
+  name: foundryPrivateDnsZoneName
+  scope: resourceGroup(foundryPrivateDnsZoneSubscriptionId, foundryPrivateDnsZoneResourceGroupName)
 }
 
 // ============================================================================
@@ -244,6 +275,105 @@ resource dnsZoneGroup 'Microsoft.Network/privateEndpoints/privateDnsZoneGroups@2
 }
 
 // ============================================================================
+// Azure AI Foundry — Account + Project (project-based model, NOT hub-based)
+// ============================================================================
+
+// The new Foundry model uses CognitiveServices/accounts (kind: AIServices) with
+// allowProjectManagement: true.  Projects are child resources of the account.
+// This is NOT the classic hub-based model (MachineLearningServices/workspaces).
+
+resource aiFoundryAccount 'Microsoft.CognitiveServices/accounts@2025-06-01' = {
+  name: aiFoundryName
+  location: location
+  identity: {
+    type: 'SystemAssigned'
+  }
+  sku: {
+    name: 'S0'
+  }
+  kind: 'AIServices'
+  properties: {
+    allowProjectManagement: true
+    customSubDomainName: aiFoundryName
+    publicNetworkAccess: 'Disabled'
+    disableLocalAuth: false
+  }
+}
+
+resource aiFoundryProject 'Microsoft.CognitiveServices/accounts/projects@2025-06-01' = {
+  name: aiProjectName
+  parent: aiFoundryAccount
+  location: location
+  identity: {
+    type: 'SystemAssigned'
+  }
+  properties: {}
+}
+
+// ============================================================================
+// Private Endpoint for Foundry
+// ============================================================================
+
+// Always created regardless of APIM SKU. Unlike APIM (which has VNet injection
+// in Developer mode), Foundry is a PaaS service without VNet injection — it
+// always needs a PE for private connectivity.
+resource foundryPrivateEndpoint 'Microsoft.Network/privateEndpoints@2024-01-01' = {
+  name: foundryPrivateEndpointName
+  location: location
+  properties: {
+    subnet: {
+      id: existingPeSubnet.id
+    }
+    privateLinkServiceConnections: [
+      {
+        name: foundryPrivateLinkServiceConnectionName
+        properties: {
+          privateLinkServiceId: aiFoundryAccount.id
+          groupIds: [
+            'account'
+          ]
+        }
+      }
+    ]
+  }
+}
+
+// ============================================================================
+// Foundry Private DNS Zone Group
+// ============================================================================
+
+resource foundryDnsZoneGroup 'Microsoft.Network/privateEndpoints/privateDnsZoneGroups@2024-01-01' = {
+  name: 'default'
+  parent: foundryPrivateEndpoint
+  properties: {
+    privateDnsZoneConfigs: [
+      {
+        name: 'privatelink-cognitiveservices-azure-com'
+        properties: {
+          privateDnsZoneId: existingFoundryPrivateDnsZone.id
+        }
+      }
+    ]
+  }
+}
+
+// ============================================================================
+// RBAC — APIM Managed Identity → Cognitive Services OpenAI User on Foundry
+// ============================================================================
+
+// Grants the APIM system-assigned managed identity permission to call the
+// Foundry inference endpoint (chat completions, embeddings, etc.).
+resource apimFoundryRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(aiFoundryAccount.id, apimService.id, cognitiveServicesOpenAIUserRoleId)
+  scope: aiFoundryAccount
+  properties: {
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', cognitiveServicesOpenAIUserRoleId)
+    principalId: apimService.identity.principalId
+    principalType: 'ServicePrincipal'
+  }
+}
+
+// ============================================================================
 // Disable Public Network Access (post-creation)
 // ============================================================================
 
@@ -287,3 +417,23 @@ output privateEndpointId string = isDeveloper ? '' : apimPrivateEndpoint.id
 
 @description('Principal ID of the APIM system-assigned managed identity.')
 output apimPrincipalId string = apimService.identity.principalId
+
+// --- Azure AI Foundry outputs ---
+
+@description('Resource ID of the Azure AI Foundry account.')
+output aiFoundryAccountId string = aiFoundryAccount.id
+
+@description('Name of the Azure AI Foundry account.')
+output aiFoundryAccountName string = aiFoundryAccount.name
+
+@description('Endpoint URL of the Azure AI Foundry account.')
+output aiFoundryEndpoint string = aiFoundryAccount.properties.endpoint
+
+@description('Name of the Azure AI Foundry project.')
+output aiProjectName string = aiFoundryProject.name
+
+@description('Resource ID of the Azure AI Foundry project.')
+output aiProjectId string = aiFoundryProject.id
+
+@description('Resource ID of the Foundry private endpoint.')
+output foundryPrivateEndpointId string = foundryPrivateEndpoint.id
